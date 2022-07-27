@@ -16,8 +16,12 @@ def os_cfar(half_train, half_guard, rank, SOS, data):
     lag = ns - lead
     # k = rank
     N = 2*half_train - 2*half_guard
-    k = round(3*N/4)
     
+    # Try these methods
+    #k = round(3*N/4)
+    k = rank
+
+    print(data)
     print("N (num training) = ", N)
     print("train half = ", half_train)
     print("Guard half = ", half_guard)

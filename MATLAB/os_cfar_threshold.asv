@@ -1,7 +1,6 @@
 addpath('../')
 addpath('matlab_lib\')
 pytbl = readtable("threshold.txt");
-pyfftutbl = readtable("pyFFTup.txt");
 iq_tbl=readtable('IQ_tri_20kmh.txt','Delimiter' ,' ');
 sweeps = 512; % Same as in Python
 i_up = table2array(iq_tbl(sweeps,1:200));
@@ -41,14 +40,13 @@ IQ_DN(end-num_nul+1:end) = 0;
 IQ_DN = flip(IQ_DN,2);
 
 % From Python for SOS = 10
-Pfa = 1.816061631396838e-05;
-Pfa = 10e-3
-train = 50;
-guard = 4;
-N = train - guard;
-k = round(3*N/4);
-k = N;
-OS = proc_oscfar(train, guard, k, Pfa);
+% Pfa = 1.816061631396838e-05;
+% train = 50;
+% guard = 4;
+% N = train - guard;
+% k = round(3*N/4);
+% 
+% OS = proc_oscfar(train, guard, k, Pfa);
 
 % guard = 2*n_fft/n_samples;
 % guard = floor(guard/2)*2; % make even
@@ -71,9 +69,8 @@ OS = proc_oscfar(train, guard, k, Pfa);
 [up_os, upth] = OS(abs(IQ_UP)', 1:n_fft/2);
 [dn_os, dnth] = OS(abs(IQ_DN)', 1:n_fft/2);
 
-IQ_UP_mag = absmagdb(IQ_UP);
+
 pyth = table2array(pytbl);
-pyfftup = table2array(pyfftutbl);
 %%
 close all
 figure
@@ -81,9 +78,7 @@ plot(absmagdb(th'), 'DisplayName','Python th')
 hold on
 plot(absmagdb(upth'), 'DisplayName','MATLAB th')
 hold on
-plot(absmagdb(IQ_UP'), 'DisplayName','MATLAB FFT')
-hold on
-plot(absmagdb(pyfftup), 'DisplayName','Python FFT')
+plot(absmagdb(IQ_UP'))
 legend
 % hold on
 % plot(absmagdb(IQ_UP1))
