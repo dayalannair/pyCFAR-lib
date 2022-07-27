@@ -1,4 +1,5 @@
-from cfar_lib import os_cfar
+# from cfar_lib import os_cfar
+from os_cfar_v2 import os_cfar
 import numpy as np
 
 print("testing OS cfar")
@@ -36,13 +37,24 @@ IQ_DN[len(IQ_DN)-num_nul+1:] = 0
 
 # CFAR
 n_samples = len(iq_u)
-guard = 2*n_fft/n_samples
+guard = n_fft/n_samples
 guard = int(np.floor(guard/2)*2) # make even
 
 train = round(20*n_fft/n_samples)
-train = int(np.floor(train/2)*2)
+train = int(np.floor(train/2))
 rank = train
 print(train)
-Pfa = 15e-3
+Pfa_expected = 15e-3
+SOS = 10
 # note the abs
-cfar_res_up = os_cfar(train, guard, rank, Pfa, abs(IQ_UP))
+Pfa, cfar_res_up, th = os_cfar(train, guard, rank, SOS, abs(IQ_UP))
+print("Expected Pfa = ", Pfa_expected)
+print("SOS = ", SOS)
+print("Actual Pfa for SOS = ", Pfa)
+
+fthname = "threshold.txt"
+np.savetxt(fthname, th, delimiter=' ', newline='\n')
+print(th)
+# with open(fthname, 'w') as fth:
+	# fth.write(th)
+# print(cfar_res_up)
