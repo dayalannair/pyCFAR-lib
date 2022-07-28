@@ -18,15 +18,15 @@ def os_cfar(half_train, half_guard, rank, SOS, data):
     N = 2*half_train - 2*half_guard
     
     # Try these methods
-    #k = round(3*N/4)
+    # k = round(3*N/4)
     k = rank
 
-    print(data)
-    print("N (num training) = ", N)
-    print("train half = ", half_train)
-    print("Guard half = ", half_guard)
-    print("k = ", k)
-    print("ns = ", ns)
+    # print(data)
+    # print("N (num training) = ", N)
+    # print("train half = ", half_train)
+    # print("Guard half = ", half_guard)
+    # print("k = ", k)
+    # print("ns = ", ns)
     # Pfa_numer = k*mt.factorial(N)* mt.factorial(k-1)*mt.factorial(SOS+N-k)
     # Pfa_denom = (mt.factorial(k)*mt.factorial(N-k))*mt.factorial(SOS+N)
     # Pfa = Pfa_numer/Pfa_denom
