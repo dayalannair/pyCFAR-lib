@@ -1,9 +1,10 @@
 # from cfar_lib import os_cfar
 from operator import length_hint
+from turtle import up
 from os_cfar_v2 import os_cfar
 import numpy as np
 from scipy.fft import fft
-
+from scipy import signal
 print("testing OS cfar")
 with open("IQ_tri_20kmh.txt", "r") as raw_IQ:
 		# split into sweeps
@@ -11,7 +12,7 @@ with open("IQ_tri_20kmh.txt", "r") as raw_IQ:
 
 fft_array       = np.empty([len(sweeps)-5000, 256])
 threshold_array = np.empty([len(sweeps)-5000, 256])
-
+up_peaks        = np.empty([len(sweeps)-5000, 256])
 for sweep in range(len(sweeps)-5000):
     # Extract samples from 1 sweep
     samples = np.array(sweeps[sweep].split(" "))
@@ -24,8 +25,15 @@ for sweep in range(len(sweeps)-5000):
     # test = np.power([1,2,3,4],2)
     # print(test)
     # print(i_data)
-    iq_u = np.power(i_data[  0:200-1],2) + np.power(q_data[  0:200-1],2)
-    iq_d = np.power(i_data[200:400-1],2) + np.power(q_data[200:400-1],2)
+    # NOTE: last element in slice not included
+    iq_u = np.power(i_data[  0:200],2) + np.power(q_data[  0:200],2)
+    iq_d = np.power(i_data[200:400],2) + np.power(q_data[200:400],2)
+    # SLL specified as positive
+    twinu = signal.windows.taylor(200, nbar=4, sll=38, norm=False)
+    twind = signal.windows.taylor(200, nbar=4, sll=38, norm=False)
+
+    iq_u = np.multiply(iq_u, twinu)
+    iq_d = np.multiply(iq_u, twind)
 
     n_fft = 512 
     IQ_UP = fft(iq_u,n_fft)
@@ -55,7 +63,8 @@ for sweep in range(len(sweeps)-5000):
     rank = 2*half_train -2*half_guard
     # rank = half_train*2
     Pfa_expected = 15e-3
-    SOS = 1
+    # factorial needs integer values
+    SOS = 2
     # note the abs
 
     Pfa, cfar_res_up, th = os_cfar(half_train, half_guard, rank, SOS, abs(IQ_UP))
@@ -65,19 +74,30 @@ for sweep in range(len(sweeps)-5000):
     
     # np.append(threshold_array, th)
     # np.append(fft_array, abs(IQ_UP))
-
+    
+    # NOTE: no need to multiply as cfar function returns scaled values
+    # up_peaks[sweep] = np.multiply(abs(IQ_UP), cfar_res_up)
+    up_peaks[sweep] = cfar_res_up
     threshold_array[sweep] = th
+
     fft_array[sweep] = abs(IQ_UP)
 
 
 
 print(fft_array)
-
+print("PFA for SOS = ", Pfa)
+print("Train = ", 2*half_train)
+print("Guard = ", 2*half_guard)
 fthname = "threshold.txt"
 np.savetxt(fthname, threshold_array, delimiter=' ', newline='\n')
 
 fftupname = "pyFFTup.txt"
 np.savetxt(fftupname,  fft_array, delimiter=' ', newline='\n')
+
+uppkname = "oscfar_up_pks.txt"
+np.savetxt(uppkname,  up_peaks, delimiter=' ', newline='\n')
+
+
 # print(th)
 # with open(fthname, 'w') as fth:
 	# fth.write(th)
