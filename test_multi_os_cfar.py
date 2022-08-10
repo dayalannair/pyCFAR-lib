@@ -1,10 +1,10 @@
 # from cfar_lib import os_cfar
-from operator import length_hint
-from turtle import up
-from os_cfar_v2 import os_cfar
+from os_cfar_v4 import os_cfar
 import numpy as np
 from scipy.fft import fft
 from scipy import signal
+import matplotlib.pyplot as plt
+from time import sleep
 print("testing OS cfar")
 with open("IQ_tri_20kmh.txt", "r") as raw_IQ:
 		# split into sweeps
@@ -13,11 +13,49 @@ with open("IQ_tri_20kmh.txt", "r") as raw_IQ:
 fft_array       = np.empty([len(sweeps)-5000, 256])
 threshold_array = np.empty([len(sweeps)-5000, 256])
 up_peaks        = np.empty([len(sweeps)-5000, 256])
+
+# ------------------------ Frequency axis -----------------
+nfft = 512
+n_fft = 512 
+n_half = round(nfft/2)
+fs = 200e3
+# kHz Axis
+fax = np.linspace(0, round(fs/2), round(n_half))
+# c*fb/(2*slope)
+tsweep = 1e-3
+bw = 240e6
+slope = bw/tsweep
+c = 3e8
+rng_ax = c*fax/(2*slope)
+
+upth = np.full(n_half, 250)
+dnth = np.full(n_half, 250)
+fftu = np.full(n_half, 250)
+fftd = np.full(n_half, 250)
+
+plt.ion()
+
+figure, ax = plt.subplots(nrows=2, ncols=1, figsize=(10, 8))
+line1, = ax[0].plot(rng_ax, fftd)
+line2, = ax[0].plot(rng_ax, dnth)
+line3, = ax[1].plot(rng_ax, fftu)
+line4, = ax[1].plot(rng_ax, upth)
+
+ax[0].set_title("Down chirp spectrum negative half flipped")
+ax[1].set_title("Up chirp spectrum positive half")
+
+ax[0].set_xlabel("Coupled Range (m)")
+ax[1].set_xlabel("Coupled Range (m)")
+
+ax[0].set_ylabel("Magnitude (dB)")
+ax[1].set_ylabel("Magnitude (dB)")
+ax[0].set_ylim([200, 400])
+ax[1].set_ylim([200, 400])
 for sweep in range(len(sweeps)-5000):
     # Extract samples from 1 sweep
     samples = np.array(sweeps[sweep].split(" "))
-    i_data = samples[  0:400-1]
-    q_data = samples[400:800-1]
+    i_data = samples[  0:400]
+    q_data = samples[400:800]
 
     # 32 bit for embedded systems e.g. raspberry pi
     i_data = i_data.astype(np.int32)
@@ -29,30 +67,29 @@ for sweep in range(len(sweeps)-5000):
     iq_u = np.power(i_data[  0:200],2) + np.power(q_data[  0:200],2)
     iq_d = np.power(i_data[200:400],2) + np.power(q_data[200:400],2)
     # SLL specified as positive
-    twinu = signal.windows.taylor(200, nbar=4, sll=38, norm=False)
-    twind = signal.windows.taylor(200, nbar=4, sll=38, norm=False)
+    twin = signal.windows.taylor(200, nbar=3, sll=100, norm=False)
 
-    iq_u = np.multiply(iq_u, twinu)
-    iq_d = np.multiply(iq_u, twind)
+    iq_u = np.multiply(iq_u, twin)
+    iq_d = np.multiply(iq_d, twin)
 
-    n_fft = 512 
-    IQ_UP = fft(iq_u,n_fft)
-    IQ_DN = fft(iq_d,n_fft)
-    # print(len(IQ_UP))
-    # IQ_UP = np.fft.fft(iq_u,n_fft)
-    # IQ_DN = np.fft.fft(iq_d,n_fft)
+    fftu = fft(iq_u,n_fft)
+    fftd = fft(iq_d,n_fft)
+    # fftu = np.fft.fft(iq_u,n_fft)
+    # fftd = np.fft.fft(iq_d,n_fft)
     # Halve FFTs
     # note: python starts from zero for this!
-    IQ_UP = IQ_UP[0:round(n_fft/2)]
-    IQ_DN = IQ_DN[round(n_fft/2):]
-    # print(len(IQ_UP))   
+    fftu = fftu[0:round(n_fft/2)]
+    fftd = fftd[round(n_fft/2):]
+  
     # Null feedthrough
     nul_width_factor = 0.04
     num_nul = round((n_fft/2)*nul_width_factor)
     # note: python starts from zero for this!
-    IQ_UP[0:num_nul-1] = 0
-    IQ_DN[len(IQ_DN)-num_nul:] = 0
-    # print(len(IQ_UP))
+    fftu[0:num_nul-1] = 0
+    fftd[len(fftd)-num_nul:] = 0
+
+    fftd = np.flip(fftd)
+
     # CFAR
     n_samples = len(iq_u)
     half_guard = n_fft/n_samples
@@ -67,35 +104,51 @@ for sweep in range(len(sweeps)-5000):
     SOS = 2
     # note the abs
 
-    Pfa, cfar_res_up, th = os_cfar(half_train, half_guard, rank, SOS, abs(IQ_UP))
+    Pfa, cfar_res_up, upth = os_cfar(half_train, half_guard, rank, SOS, abs(fftu))
+    Pfa, cfar_res_dn, dnth = os_cfar(half_train, half_guard, rank, SOS, abs(fftd))
     # print("Expected Pfa = ", Pfa_expected)
     # print("SOS = ", SOS)
     # print("Actual Pfa for SOS = ", Pfa)
     
     # np.append(threshold_array, th)
-    # np.append(fft_array, abs(IQ_UP))
+    # np.append(fft_array, abs(fftu))
     
     # NOTE: no need to multiply as cfar function returns scaled values
-    # up_peaks[sweep] = np.multiply(abs(IQ_UP), cfar_res_up)
+    # up_peaks[sweep] = np.multiply(abs(fftu), cfar_res_up)
     up_peaks[sweep] = cfar_res_up
-    threshold_array[sweep] = th
+    threshold_array[sweep] = upth
 
-    fft_array[sweep] = abs(IQ_UP)
+    fft_array[sweep] = abs(fftu)
+    
+    upth = 20*np.log(upth)
+    dnth = 20*np.log(dnth)
+    fftu = 20*np.log(abs(fftu))
+    fftd = 20*np.log(abs(fftd))
+
+    # print(fftu)
+    # print(len(cfar_res_up))
+    line1.set_ydata(fftd)
+    line2.set_ydata(dnth)
+    line3.set_ydata(fftu)
+    line4.set_ydata(upth)
+
+    figure.canvas.draw()
+    # sleep(0.1)
+    figure.canvas.flush_events()
 
 
+# print(fft_array)
+# print("PFA for SOS = ", Pfa)
+# print("Train = ", 2*half_train)
+# print("Guard = ", 2*half_guard)
+# fthname = "threshold.txt"
+# np.savetxt(fthname, threshold_array, delimiter=' ', newline='\n')
 
-print(fft_array)
-print("PFA for SOS = ", Pfa)
-print("Train = ", 2*half_train)
-print("Guard = ", 2*half_guard)
-fthname = "threshold.txt"
-np.savetxt(fthname, threshold_array, delimiter=' ', newline='\n')
+# fftupname = "pyFFTup.txt"
+# np.savetxt(fftupname,  fft_array, delimiter=' ', newline='\n')
 
-fftupname = "pyFFTup.txt"
-np.savetxt(fftupname,  fft_array, delimiter=' ', newline='\n')
-
-uppkname = "oscfar_up_pks.txt"
-np.savetxt(uppkname,  up_peaks, delimiter=' ', newline='\n')
+# uppkname = "oscfar_up_pks.txt"
+# np.savetxt(uppkname,  up_peaks, delimiter=' ', newline='\n')
 
 
 # print(th)
